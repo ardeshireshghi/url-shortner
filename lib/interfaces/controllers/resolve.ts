@@ -16,7 +16,7 @@ export const resolveController: http.RequestListener = async (
       res.statusCode = 404;
       res.end();
     } else {
-      res.statusCode = 302;
+      res.statusCode = 301;
       res.setHeader('Location', mappedUrl.address);
       res.end();
     }

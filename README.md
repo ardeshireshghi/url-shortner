@@ -74,3 +74,9 @@ $ curl -XPOST -H 'Content-Type: application/json' localhost:3322/register --data
 ```bash
 $ curl -Lv http://localhost:3322/f3e57dc69a26
 ```
+
+## TODO
+
+- [ ] Integration test coverage
+- [ ] Validate register `address` which is a shortened url by service
+- [ ] Integrate with Redis for storing urls
