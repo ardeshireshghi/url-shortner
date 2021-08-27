@@ -6,7 +6,6 @@ export const parseReqBody = (req: IncomingMessage): Promise<any> => {
   const data: Chunk[] = [];
 
   return new Promise((resolve, reject) => {
-    console.log(req.headers['content-type']);
     if (
       !req.headers['content-type'] ||
       req.headers['content-type'].toLowerCase() !== 'application/json'
