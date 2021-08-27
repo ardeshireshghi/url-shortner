@@ -1,0 +1,34 @@
+{
+  "name": "browser-load-stress-test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "jest": {
+    "verbose": true
+  },
+  "scripts": {
+    "start": "ts-node main.ts",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "docker": "./scripts/docker-run.sh",
+    "k8": "./scripts/run-job.sh",
+    "lint": "eslint main.ts ./lib",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -d"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.14.7",
+    "@babel/preset-typescript": "^7.14.5",
+    "eslint": "^7.32.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "jest": "^27.0.5",
+    "prettier": "^2.3.1"
+  },
+  "dependencies": {
+    "@types/jest": "^26.0.23",
+    "@types/node": "^15.12.2",
+    "dotenv": "^10.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.4.2"
+  }
+}

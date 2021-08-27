@@ -1,0 +1,144 @@
+stages:
+  - version
+  - test
+  - package
+  - publish
+  - deploy
+  - release
+  - run
+
+variables:
+  UPSTREAM_PROJECT_PATH: frontend/web/browser-load-test
+  GITLAB_TOKEN: ${CI_JOB_TOKEN}
+
+include:
+  - { project: infra/gitlab-ci-includes, file: default.yml }
+  - { project: infra/gitlab-ci-includes, file: version.yml }
+  - { project: infra/gitlab-ci-includes, file: publish.yml }
+  - { project: infra/gitlab-ci-includes, file: deploy.yml }
+  - { project: infra/gitlab-ci-includes, file: release.yml }
+
+.node:
+  tags: [2xl]
+  image: harbor.lan.sph.re/hub/library/node:16.4-buster
+  before_script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@git.sph.re/".insteadOf "ssh://git@git.sph.re/"
+    - yarn
+
+##
+## VERSION
+##
+
+version:
+  extends: .version
+  needs: []
+
+##
+## TEST
+##
+
+lint:
+  extends: .node
+  stage: test
+  script:
+    - yarn typecheck
+    - yarn lint
+
+test:
+  extends: .node
+  needs: []
+  stage: test
+  script:
+    - yarn test
+
+##
+## PUBLISH
+##
+
+publish:
+  extends: .publish_harbor
+  needs: [version]
+  tags: [amd64, shared, xl]
+  script:
+    - /kaniko/executor
+      --context ${CI_PROJECT_DIR}
+      --dockerfile ${DOCKERFILE}
+      --snapshotMode=redo
+      --use-new-run
+      --destination ${CONTAINER_IMAGE_NAME}:${CONTAINER_IMAGE_TAG}-${ARCH}
+      ${ADDITIONAL_ARGS}
+    - 'echo "published container image: ${CONTAINER_IMAGE_NAME}:${CONTAINER_IMAGE_TAG}-${ARCH}"'
+  variables:
+    DOCKERFILE: Dockerfile
+    ADDITIONAL_ARGS: '--build-arg VERSION=${APP_VERSION} --build-arg GITLAB_TOKEN=${CI_JOB_TOKEN} --cache=false'
+
+##
+## DEPLOY
+##
+
+# .deploy:
+#   extends: .deploy_k8s
+#   needs: [publish, version]
+#   variables:
+#     NAMESPACE: backend
+#     SLACK_NOTIFICATION_EMOJI: ':backend-api:'
+#     SENTRY_PROJECT: api
+#     SENTRY_ORG: sphere
+#     SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
+#     ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME}
+#     ENVIRONMENT_URL: ${CI_ENVIRONMENT_URL}
+#   script:
+#     - s5 render aes -i deployments/environments/${CI_ENVIRONMENT_NAME}.yml
+#     - helm repo update
+#     - helm dependency build deployments/chart
+#     - helm-upgrade api deployments/chart
+#       -f deployments/environments/${CI_ENVIRONMENT_NAME}.yml
+#       --set api.pods.image.tag=${CONTAINER_IMAGE_TAG}-arm64
+#       --set internal.pods.image.tag=${CONTAINER_IMAGE_TAG}-arm64
+#       --set worker.pods.image.tag=${CONTAINER_IMAGE_TAG}-arm64
+#       --set global.datadog.version=${CONTAINER_IMAGE_TAG}-arm64
+#       --atomic
+#       --timeout 10m
+#     - sentry-cli releases new ${CI_COMMIT_SHA}
+#     - sentry-cli releases set-commits --auto ${APP_VERSION}
+#     - sentry-cli releases finalize ${APP_VERSION}
+#     - if [[ $CI_ENVIRONMENT_NAME =~ (staging|dev|prod) ]]; then
+#       sentry-cli releases deploys ${APP_VERSION} new --env=${BASH_REMATCH[1]};
+#       fi
+#     - sentry-cli releases
+#       -o ${SENTRY_ORG}
+#       -p ${SENTRY_PROJECT}
+#       files ${APP_VERSION}
+#       upload-sourcemaps
+#       --url-prefix '~/dist/'
+#       --validate ${CI_PROJECT_DIR}
+
+##
+## RELEASE
+##
+
+release:
+  extends: .release_gitlab
+  needs: [version]
+
+hotfix:
+  extends: .release_gitlab_hotfix
+  needs: [version]
+
+execute:
+  stage: run
+  image: harbor.lan.sph.re/frontend/web/browser-load-test:${CONTAINER_IMAGE_TAG}-amd64
+  script:
+    - cd /opt/app && ./entrypoint.sh
+  variables:
+    GIT_STRATEGY: none
+    IS_HEADLESS: 'true'
+    SPHERE_USER_EMAIL: testing.bot@sphere.me
+    SPHERE_BASE_URL: https://beta.sphere.me
+
+    # SPHERE_USER_PASSWORD is in project CI setting variables
+  rules:
+    # Run on default branch
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true

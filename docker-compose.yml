@@ -1,0 +1,25 @@
+version: '3'
+services:
+  browser-load-tester:
+    build: .
+    env_file:
+      - .env
+  tor-socks-proxy:
+    image: 'peterdavehello/tor-socks-proxy'
+    ports:
+      - '9150:9150'
+    restart: always
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'curl',
+          '-f',
+          '--socks5-hostname',
+          '127.0.0.1:${TOR_PROXY_PORT}',
+          'https://ipinfo.tw/ip'
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
